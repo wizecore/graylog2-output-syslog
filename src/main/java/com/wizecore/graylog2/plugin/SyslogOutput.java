@@ -49,6 +49,7 @@ public class SyslogOutput implements MessageOutput {
 	private SyslogIF syslog;
 	private String format;
 	private MessageSender sender;
+    private String appName;
 
 	public static MessageSender createSender(String fmt, Configuration conf) {
 		try {
@@ -91,6 +92,10 @@ public class SyslogOutput implements MessageOutput {
 		if (format == null || format.equals("")) {
 			format = "plain";
 		}
+        appName = conf.getString("applicationName");
+        if (appName == null || appName.equals("")) {
+            appName = "server";
+        }
 
 		log.info("Creating syslog output " + protocol + "://" + host + ":" + port + ", format " + format);
 		SyslogConfigIF config = null;
@@ -142,6 +147,7 @@ public class SyslogOutput implements MessageOutput {
 		}
 		config.setMaxMessageLength(maxlen);
 		config.setTruncateMessage(true);
+        config.setLocalName(appName);
 
 		String hash = protocol + "_" + host + "_" + port + "_" + format;
 		syslog = Syslog.exists(hash) ? Syslog.getInstance(hash) : Syslog.createInstance(hash, config);
@@ -316,6 +322,8 @@ public class SyslogOutput implements MessageOutput {
 					"Message format. For detailed explanation, see https://github.com/wizecore/graylog2-output-syslog",
 					ConfigurationField.Optional.NOT_OPTIONAL)
 			);
+
+            configurationRequest.addField(new TextField("applicationName", "Application name", "server", "Application identifier for syslog", ConfigurationField.Optional.OPTIONAL));
 			configurationRequest.addField(new BooleanField("transparentFormatRemoveHeader", "Remove header (only for transparent)", false, "Do not insert header when it forwards the message content."));
 
 			configurationRequest.addField(new TextField("maxlen", "Maximum message length", "", "Maximum message (body) length. Longer messages will be truncated. If not specified defaults to 16384 bytes.", ConfigurationField.Optional.OPTIONAL));
