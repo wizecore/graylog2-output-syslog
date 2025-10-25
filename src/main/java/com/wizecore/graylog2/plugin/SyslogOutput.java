@@ -18,6 +18,7 @@ import org.graylog2.syslog4j.Syslog;
 import org.graylog2.syslog4j.SyslogConfigIF;
 import org.graylog2.syslog4j.SyslogIF;
 import org.graylog2.syslog4j.SyslogRuntimeException;
+import org.graylog2.syslog4j.impl.AbstractSyslogConfigIF;
 import org.graylog2.syslog4j.impl.message.processor.SyslogMessageProcessor;
 import org.graylog2.syslog4j.impl.message.processor.structured.StructuredSyslogMessageProcessor;
 import org.graylog2.syslog4j.impl.net.tcp.TCPNetSyslogConfig;
@@ -142,6 +143,23 @@ public class SyslogOutput implements MessageOutput {
 		}
 		config.setMaxMessageLength(maxlen);
 		config.setTruncateMessage(true);
+
+		// Set maximum queue size to prevent OOM under high load (issue #61)
+		// Default is unlimited which causes memory leaks
+		int maxQueueSize = 500; // Conservative default
+		try {
+			String queueSizeStr = conf.getString("maxQueueSize");
+			if (queueSizeStr != null && !queueSizeStr.trim().isEmpty()) {
+				maxQueueSize = Integer.parseInt(queueSizeStr);
+			}
+		} catch (Exception e) {
+			log.warning("Failed to parse maxQueueSize, using default: " + maxQueueSize);
+		}
+		// setMaxQueueSize is available on AbstractSyslogConfigIF, which all configs implement
+		if (config instanceof AbstractSyslogConfigIF) {
+			((AbstractSyslogConfigIF) config).setMaxQueueSize(maxQueueSize);
+			log.info("Set maxQueueSize to " + maxQueueSize + " for " + protocol + "://" + host + ":" + port);
+		}
 
 		String hash = protocol + "_" + host + "_" + port + "_" + format;
 		syslog = Syslog.exists(hash) ? Syslog.getInstance(hash) : Syslog.createInstance(hash, config);
@@ -319,6 +337,8 @@ public class SyslogOutput implements MessageOutput {
 			configurationRequest.addField(new BooleanField("transparentFormatRemoveHeader", "Remove header (only for transparent)", false, "Do not insert header when it forwards the message content."));
 
 			configurationRequest.addField(new TextField("maxlen", "Maximum message length", "", "Maximum message (body) length. Longer messages will be truncated. If not specified defaults to 16384 bytes.", ConfigurationField.Optional.OPTIONAL));
+
+			configurationRequest.addField(new TextField("maxQueueSize", "Maximum queue size", "500", "Maximum number of messages to queue internally before blocking (prevents OOM). Set to -1 for unlimited (not recommended). Default is 500.", ConfigurationField.Optional.OPTIONAL));
 
 			configurationRequest.addField(new TextField("keystore", "Key store", "", "Path to Java keystore (required for SSL over TCP). Must contain private key and cert for this client.", ConfigurationField.Optional.OPTIONAL));
 			configurationRequest.addField(new TextField("keystorePassword", "Key store password", "", "", ConfigurationField.Optional.OPTIONAL));
