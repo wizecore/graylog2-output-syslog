@@ -18,6 +18,7 @@ import org.graylog2.syslog4j.Syslog;
 import org.graylog2.syslog4j.SyslogConfigIF;
 import org.graylog2.syslog4j.SyslogIF;
 import org.graylog2.syslog4j.SyslogRuntimeException;
+import org.graylog2.syslog4j.impl.AbstractSyslogConfigIF;
 import org.graylog2.syslog4j.impl.message.processor.SyslogMessageProcessor;
 import org.graylog2.syslog4j.impl.message.processor.structured.StructuredSyslogMessageProcessor;
 import org.graylog2.syslog4j.impl.net.tcp.TCPNetSyslogConfig;
@@ -92,13 +93,23 @@ public class SyslogOutput implements MessageOutput {
 			format = "plain";
 		}
 
+		int maxQueueSize = 500;
+        String queueSizeStr = conf.getString("maxQueueSize");
+        if (queueSizeStr != null && !queueSizeStr.trim().isEmpty()) {
+            maxQueueSize = Integer.parseInt(queueSizeStr);
+        }
+    
 		log.info("Creating syslog output " + protocol + "://" + host + ":" + port + ", format " + format);
 		SyslogConfigIF config = null;
 		if (protocol.toLowerCase().equals("udp")) {
-			config = new UDPNetSyslogConfig();
+			UDPNetSyslogConfig udpConfig = new UDPNetSyslogConfig();
+            udpConfig.setMaxQueueSize(maxQueueSize);
+            config = udpConfig;
 		} else
 		if (protocol.toLowerCase().equals("tcp")) {
-			config = new TCPNetSyslogConfig();
+			TCPNetSyslogConfig tcpConfig = new TCPNetSyslogConfig();
+            tcpConfig.setMaxQueueSize(maxQueueSize);
+            config = tcpConfig;
 		} else
 		if (protocol.toLowerCase().equals("tcp-ssl")) {
             CustomSSLSyslogConfig sslConfig = new CustomSSLSyslogConfig();
@@ -128,6 +139,7 @@ public class SyslogOutput implements MessageOutput {
 			sslConfig.setKeyStorePassword(ksp);
 			sslConfig.setTrustStore(ts);
 			sslConfig.setTrustStorePassword(tsp);
+            sslConfig.setMaxQueueSize(maxQueueSize);
 		} else {
 			throw new IllegalArgumentException("Unknown protocol: " + protocol);
 		}
@@ -319,6 +331,8 @@ public class SyslogOutput implements MessageOutput {
 			configurationRequest.addField(new BooleanField("transparentFormatRemoveHeader", "Remove header (only for transparent)", false, "Do not insert header when it forwards the message content."));
 
 			configurationRequest.addField(new TextField("maxlen", "Maximum message length", "", "Maximum message (body) length. Longer messages will be truncated. If not specified defaults to 16384 bytes.", ConfigurationField.Optional.OPTIONAL));
+
+			configurationRequest.addField(new TextField("maxQueueSize", "Maximum queue size", "500", "Maximum number of messages to queue internally. Set to -1 for unlimited. Default is 500.", ConfigurationField.Optional.OPTIONAL));
 
 			configurationRequest.addField(new TextField("keystore", "Key store", "", "Path to Java keystore (required for SSL over TCP). Must contain private key and cert for this client.", ConfigurationField.Optional.OPTIONAL));
 			configurationRequest.addField(new TextField("keystorePassword", "Key store password", "", "", ConfigurationField.Optional.OPTIONAL));
