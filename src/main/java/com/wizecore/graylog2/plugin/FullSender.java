@@ -13,7 +13,7 @@ import com.google.common.collect.Maps;
 
 /**
  * Sends full message to Syslog.
- * 
+ *
  * <165>1 2003-10-11T22:14:15.003Z mymachine.example.com
            evntslog - ID47 [exampleSDID@0 iut="3" eventSource=
            "Application" eventID="1011"] BOMAn application
@@ -23,21 +23,44 @@ import com.google.common.collect.Maps;
 public class FullSender implements MessageSender {
 	private Logger log = Logger.getLogger(FullSender.class.getName());
 
+	/**
+	 * ThreadLocal HashMap to avoid allocating new HashMaps on every message
+	 */
+	private static final ThreadLocal<Map<String, String>> SD_PARAMS_CACHE = new ThreadLocal<Map<String, String>>() {
+		@Override
+		protected Map<String, String> initialValue() {
+			return new HashMap<String, String>();
+		}
+	};
+
+	/**
+	 * ThreadLocal HashMap for structured data to avoid allocating new HashMaps on every message
+	 */
+	private static final ThreadLocal<Map<String, Map<String, String>>> SD_CACHE = new ThreadLocal<Map<String, Map<String, String>>>() {
+		@Override
+		protected Map<String, Map<String, String>> initialValue() {
+			return new HashMap<String, Map<String, String>>();
+		}
+	};
+
 	@Override
-	public void send(SyslogIF syslog, int level, Message msg) {		
-		Map<String, String> sdParams = new HashMap<String, String>();
+	public void send(SyslogIF syslog, int level, Message msg) {
+		Map<String, String> sdParams = SD_PARAMS_CACHE.get();
+		sdParams.clear();
+
 		Map<String, Object> fields = msg.getFields();
 		for (String key: fields.keySet()) {
 			if (key != Message.FIELD_MESSAGE && key != Message.FIELD_FULL_MESSAGE && key != Message.FIELD_SOURCE) {
 				sdParams.put(key, fields.get(key).toString());
 			}
 		}
-		
+
 		// http://www.iana.org/assignments/enterprise-numbers/enterprise-numbers
 		// <name>@<enterpriseId>
 		String sdId = "all@0";
 		// log.info("Sending " + level + ", " + msg.getId() + ", " + msg.getSource() + ", " + sdId + "=" + sdParams + ", " + msg.getMessage());
-		Map<String,Map<String,String>> sd = new HashMap<String, Map<String,String>>();
+		Map<String,Map<String,String>> sd = SD_CACHE.get();
+		sd.clear();
 		sd.put(sdId, sdParams);
 		
 		String msgId = null;		
@@ -65,8 +88,19 @@ public class FullSender implements MessageSender {
 		syslog.log(level, new StructuredSyslogMessage(msgId, sourceId, sd, dumpMessage(msg)));
 	}
 	
+	/**
+	 * ThreadLocal StringBuilder for dumpMessage to avoid allocations
+	 */
+	private static final ThreadLocal<StringBuilder> DUMP_MESSAGE_BUILDER = new ThreadLocal<StringBuilder>() {
+		@Override
+		protected StringBuilder initialValue() {
+			return new StringBuilder(512);
+		}
+	};
+
 	public static String dumpMessage(Message msg) {
-		final StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = DUMP_MESSAGE_BUILDER.get();
+		sb.setLength(0);
         sb.append("source: ").append(msg.getField(Message.FIELD_SOURCE)).append(" | ");
 
         Object text = msg.getField(Message.FIELD_FULL_MESSAGE);

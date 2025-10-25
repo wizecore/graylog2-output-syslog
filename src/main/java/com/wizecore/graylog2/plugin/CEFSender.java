@@ -12,8 +12,8 @@ import org.graylog2.syslog4j.SyslogIF;
 
 /*
  * http://blog.rootshell.be/2011/05/11/ossec-speaks-arcsight/
- * 
- * 
+ *
+ *
  * CEF:Version|Device Vendor|Device Product|Device Version|Signature ID|Name|Severity|Extension
 
 CEF:0|ArcSight|Logger|5.0.0.5355.2|sensor:115|Logger Internal Event|1|\
@@ -23,9 +23,20 @@ cs2Label=timeframe
  */
 public class CEFSender implements MessageSender {
 
+	/**
+	 * ThreadLocal StringBuilder to avoid allocating new StringBuilder on every message
+	 */
+	private static final ThreadLocal<StringBuilder> STRING_BUILDER_CACHE = new ThreadLocal<StringBuilder>() {
+		@Override
+		protected StringBuilder initialValue() {
+			return new StringBuilder(512);
+		}
+	};
+
 	@Override
 	public void send(SyslogIF syslog, int level, Message msg) {
-		StringBuilder out = new StringBuilder();
+		StringBuilder out = STRING_BUILDER_CACHE.get();
+		out.setLength(0);
 		
 		// Header:
 		// CEF:Version|Device Vendor|Device Product|Device Version|

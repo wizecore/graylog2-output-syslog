@@ -23,6 +23,27 @@ public class TransparentSyslogSender implements MessageSender {
 
 	public static final String SYSLOG_DATEFORMAT = "MMM dd HH:mm:ss";
 
+	/**
+	 * ThreadLocal SimpleDateFormat to avoid creating new instances on every message
+	 * and avoid synchronization issues (SimpleDateFormat is not thread-safe)
+	 */
+	private static final ThreadLocal<SimpleDateFormat> DATE_FORMAT = new ThreadLocal<SimpleDateFormat>() {
+		@Override
+		protected SimpleDateFormat initialValue() {
+			return new SimpleDateFormat(SYSLOG_DATEFORMAT, Locale.ENGLISH);
+		}
+	};
+
+	/**
+	 * ThreadLocal StringBuilder to avoid allocating new StringBuilder on every message
+	 */
+	private static final ThreadLocal<StringBuilder> STRING_BUILDER_CACHE = new ThreadLocal<StringBuilder>() {
+		@Override
+		protected StringBuilder initialValue() {
+			return new StringBuilder(256);
+		}
+	};
+
 	public TransparentSyslogSender(Configuration conf) {
 		removeHeader = conf.getBoolean("transparentFormatRemoveHeader");
 	}
@@ -35,7 +56,7 @@ public class TransparentSyslogSender implements MessageSender {
 	 * @return
 	 */
 	public static void appendSyslogTimestamp(Message msg, StringBuilder buffer) {
-		SimpleDateFormat dateFormat = new SimpleDateFormat(SYSLOG_DATEFORMAT, Locale.ENGLISH);
+		SimpleDateFormat dateFormat = DATE_FORMAT.get();
 
 		Date dt = null;
 		Object ts = msg.getField("timestamp");
@@ -170,7 +191,8 @@ public class TransparentSyslogSender implements MessageSender {
 
 	@Override
 	public void send(SyslogIF syslog, int level, Message msg) {
-		StringBuilder out = new StringBuilder();
+		StringBuilder out = STRING_BUILDER_CACHE.get();
+		out.setLength(0);
 		if (!removeHeader) {
 			appendHeader(msg, level, out);
 		}

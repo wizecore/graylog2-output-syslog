@@ -28,19 +28,51 @@ public class SnareWindowsSender implements MessageSender {
 	public static final String SYSLOG_DATEFORMAT = "MMM dd HH:mm:ss";
   public static final String MSEVENT_DATEFORMAT = "EEE MMM dd HH:mm:ss yyyy";
 	public static final String SEPARATOR = "\t";
+
+	/**
+	 * ThreadLocal SimpleDateFormat to avoid creating new instances on every message
+	 * and avoid synchronization issues (SimpleDateFormat is not thread-safe)
+	 */
+	private static final ThreadLocal<SimpleDateFormat> SYSLOG_DATE_FORMAT = new ThreadLocal<SimpleDateFormat>() {
+		@Override
+		protected SimpleDateFormat initialValue() {
+			return new SimpleDateFormat(SYSLOG_DATEFORMAT, Locale.ENGLISH);
+		}
+	};
+
+	/**
+	 * ThreadLocal SimpleDateFormat for MS Event timestamp
+	 */
+	private static final ThreadLocal<SimpleDateFormat> MSEVENT_DATE_FORMAT = new ThreadLocal<SimpleDateFormat>() {
+		@Override
+		protected SimpleDateFormat initialValue() {
+			return new SimpleDateFormat(MSEVENT_DATEFORMAT, Locale.ENGLISH);
+		}
+	};
+
+	/**
+	 * ThreadLocal StringBuilder to avoid allocating new StringBuilder on every message
+	 */
+	private static final ThreadLocal<StringBuilder> STRING_BUILDER_CACHE = new ThreadLocal<StringBuilder>() {
+		@Override
+		protected StringBuilder initialValue() {
+			return new StringBuilder(512);
+		}
+	};
+
 	/**
 	 * From syslog4j
-	 * 
+	 *
 	 * @param dt
 	 * @return
 	 */
 	public static void appendSyslogTimestamp(Date dt, StringBuilder buffer) {
-		SimpleDateFormat dateFormat = new SimpleDateFormat(SYSLOG_DATEFORMAT,Locale.ENGLISH);		
-		String datePrefix = dateFormat.format(dt);	
-		
-		int pos = buffer.length() + 4;		
+		SimpleDateFormat dateFormat = SYSLOG_DATE_FORMAT.get();
+		String datePrefix = dateFormat.format(dt);
+
+		int pos = buffer.length() + 4;
 		buffer.append(datePrefix);
-	
+
 		//  RFC 3164 requires leading space for days 1-9
 		if (buffer.charAt(pos) == '0') {
 			buffer.setCharAt(pos,' ');
@@ -48,12 +80,12 @@ public class SnareWindowsSender implements MessageSender {
 	}
 
 	public static void appendMSEventTimestamp(Date dt, StringBuilder buffer) {
-		SimpleDateFormat dateFormat = new SimpleDateFormat(MSEVENT_DATEFORMAT,Locale.ENGLISH);		
-		String datePrefix = dateFormat.format(dt);	
-		
-		int pos = buffer.length() + 4;		
+		SimpleDateFormat dateFormat = MSEVENT_DATE_FORMAT.get();
+		String datePrefix = dateFormat.format(dt);
+
+		int pos = buffer.length() + 4;
 		buffer.append(datePrefix);
-	
+
 		//  RFC 3164 requires leading space for days 1-9
 		if (buffer.charAt(pos) == '0') {
 			buffer.setCharAt(pos,' ');
@@ -62,7 +94,8 @@ public class SnareWindowsSender implements MessageSender {
 	
 	@Override
 	public void send(SyslogIF syslog, int level, Message msg) {
-		StringBuilder out = new StringBuilder();
+		StringBuilder out = STRING_BUILDER_CACHE.get();
+		out.setLength(0);
 		//appendHeader(msg, out);
 
 

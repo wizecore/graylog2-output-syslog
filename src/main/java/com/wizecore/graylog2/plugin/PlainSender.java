@@ -11,46 +11,68 @@ import org.graylog2.plugin.Message;
 import org.graylog2.syslog4j.SyslogIF;
 
 /**
- * Formats fields into message text 
- * 
+ * Formats fields into message text
+ *
 
         <34>1 2003-10-11T22:14:15.003Z mymachine.example.com su - ID47 - BOM'su root' failed for lonvick on /dev/pts/8
          ^priority
          	^ version
-         	  ^ date 
+         	  ^ date
          	  						   ^ host
          	  						   						 ^ APP-NAME
          	  						   						 	^ structured data?
-         	  						   						 	  ^ MSGID 
-         	  						   						 	  	    
+         	  						   						 	  ^ MSGID
+
  */
 public class PlainSender implements MessageSender {
 	private Logger log = Logger.getLogger(PlainSender.class.getName());
 
 	public static final String SYSLOG_DATEFORMAT = "MMM dd HH:mm:ss";
-	
+
+	/**
+	 * ThreadLocal SimpleDateFormat to avoid creating new instances on every message
+	 * and avoid synchronization issues (SimpleDateFormat is not thread-safe)
+	 */
+	private static final ThreadLocal<SimpleDateFormat> DATE_FORMAT = new ThreadLocal<SimpleDateFormat>() {
+		@Override
+		protected SimpleDateFormat initialValue() {
+			return new SimpleDateFormat(SYSLOG_DATEFORMAT, Locale.ENGLISH);
+		}
+	};
+
+	/**
+	 * ThreadLocal StringBuilder to avoid allocating new StringBuilder on every message
+	 */
+	private static final ThreadLocal<StringBuilder> STRING_BUILDER_CACHE = new ThreadLocal<StringBuilder>() {
+		@Override
+		protected StringBuilder initialValue() {
+			return new StringBuilder(256);
+		}
+	};
+
 	/**
 	 * From syslog4j
-	 * 
+	 *
 	 * @param dt
 	 * @return
 	 */
 	public static void appendSyslogTimestamp(Date dt, StringBuilder buffer) {
-		SimpleDateFormat dateFormat = new SimpleDateFormat(SYSLOG_DATEFORMAT,Locale.ENGLISH);		
-		String datePrefix = dateFormat.format(dt);	
-		
-		int pos = buffer.length() + 4;		
+		SimpleDateFormat dateFormat = DATE_FORMAT.get();
+		String datePrefix = dateFormat.format(dt);
+
+		int pos = buffer.length() + 4;
 		buffer.append(datePrefix);
-	
+
 		//  RFC 3164 requires leading space for days 1-9
 		if (buffer.charAt(pos) == '0') {
 			buffer.setCharAt(pos,' ');
 		}
 	}
-	
+
 	@Override
 	public void send(SyslogIF syslog, int level, Message msg) {
-		StringBuilder out = new StringBuilder();
+		StringBuilder out = STRING_BUILDER_CACHE.get();
+		out.setLength(0);
 		appendHeader(msg, out);
 		out.append(msg.getMessage());
 		String str = out.toString();
