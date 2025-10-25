@@ -102,7 +102,7 @@ public class SyslogOutput implements MessageOutput {
 		log.info("Creating syslog output " + protocol + "://" + host + ":" + port + ", format " + format);
 		SyslogConfigIF config = null;
 		if (protocol.toLowerCase().equals("udp")) {
-			UDPNetSyslogConfig updConfig = new UDPNetSyslogConfig();
+			UDPNetSyslogConfig udpConfig = new UDPNetSyslogConfig();
             udpConfig.setMaxQueueSize(maxQueueSize);
             config = udpConfig;
 		} else
