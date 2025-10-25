@@ -93,13 +93,23 @@ public class SyslogOutput implements MessageOutput {
 			format = "plain";
 		}
 
+		int maxQueueSize = 500;
+        String queueSizeStr = conf.getString("maxQueueSize");
+        if (queueSizeStr != null && !queueSizeStr.trim().isEmpty()) {
+            maxQueueSize = Integer.parseInt(queueSizeStr);
+        }
+    
 		log.info("Creating syslog output " + protocol + "://" + host + ":" + port + ", format " + format);
 		SyslogConfigIF config = null;
 		if (protocol.toLowerCase().equals("udp")) {
-			config = new UDPNetSyslogConfig();
+			UDPNetSyslogConfig updConfig = new UDPNetSyslogConfig();
+            udpConfig.setMaxQueueSize(maxQueueSize);
+            config = udpConfig;
 		} else
 		if (protocol.toLowerCase().equals("tcp")) {
-			config = new TCPNetSyslogConfig();
+			TCPNetSyslogConfig tcpConfig = new TCPNetSyslogConfig();
+            tcpConfig.setMaxQueueSize(maxQueueSize);
+            config = tcpConfig;
 		} else
 		if (protocol.toLowerCase().equals("tcp-ssl")) {
             CustomSSLSyslogConfig sslConfig = new CustomSSLSyslogConfig();
@@ -129,6 +139,7 @@ public class SyslogOutput implements MessageOutput {
 			sslConfig.setKeyStorePassword(ksp);
 			sslConfig.setTrustStore(ts);
 			sslConfig.setTrustStorePassword(tsp);
+            sslConfig.setMaxQueueSize(maxQueueSize);
 		} else {
 			throw new IllegalArgumentException("Unknown protocol: " + protocol);
 		}
@@ -143,23 +154,6 @@ public class SyslogOutput implements MessageOutput {
 		}
 		config.setMaxMessageLength(maxlen);
 		config.setTruncateMessage(true);
-
-		// Set maximum queue size to prevent OOM under high load (issue #61)
-		// Default is unlimited which causes memory leaks
-		int maxQueueSize = 500; // Conservative default
-		try {
-			String queueSizeStr = conf.getString("maxQueueSize");
-			if (queueSizeStr != null && !queueSizeStr.trim().isEmpty()) {
-				maxQueueSize = Integer.parseInt(queueSizeStr);
-			}
-		} catch (Exception e) {
-			log.warning("Failed to parse maxQueueSize, using default: " + maxQueueSize);
-		}
-		// setMaxQueueSize is available on AbstractSyslogConfigIF, which all configs implement
-		if (config instanceof AbstractSyslogConfigIF) {
-			((AbstractSyslogConfigIF) config).setMaxQueueSize(maxQueueSize);
-			log.info("Set maxQueueSize to " + maxQueueSize + " for " + protocol + "://" + host + ":" + port);
-		}
 
 		String hash = protocol + "_" + host + "_" + port + "_" + format;
 		syslog = Syslog.exists(hash) ? Syslog.getInstance(hash) : Syslog.createInstance(hash, config);
