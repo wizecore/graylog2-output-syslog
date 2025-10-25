@@ -338,7 +338,7 @@ public class SyslogOutput implements MessageOutput {
 
 			configurationRequest.addField(new TextField("maxlen", "Maximum message length", "", "Maximum message (body) length. Longer messages will be truncated. If not specified defaults to 16384 bytes.", ConfigurationField.Optional.OPTIONAL));
 
-			configurationRequest.addField(new TextField("maxQueueSize", "Maximum queue size", "500", "Maximum number of messages to queue internally before blocking (prevents OOM). Set to -1 for unlimited (not recommended). Default is 500.", ConfigurationField.Optional.OPTIONAL));
+			configurationRequest.addField(new TextField("maxQueueSize", "Maximum queue size", "500", "Maximum number of messages to queue internally. Set to -1 for unlimited. Default is 500.", ConfigurationField.Optional.OPTIONAL));
 
 			configurationRequest.addField(new TextField("keystore", "Key store", "", "Path to Java keystore (required for SSL over TCP). Must contain private key and cert for this client.", ConfigurationField.Optional.OPTIONAL));
 			configurationRequest.addField(new TextField("keystorePassword", "Key store password", "", "", ConfigurationField.Optional.OPTIONAL));
